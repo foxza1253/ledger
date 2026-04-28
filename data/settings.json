@@ -1,0 +1,10 @@
+{
+  "currency": "THB",
+  "currencySymbol": "฿",
+  "locale": "th-TH",
+  "monthlyBudget": {
+    "enabled": true,
+    "amount": 30000
+  },
+  "startDayOfMonth": 1
+}

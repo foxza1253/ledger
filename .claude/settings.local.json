@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:3000/api/ledger/categories)",
+      "Bash(curl -s \"http://localhost:3000/api/ledger/transactions?year=2026&month=4\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s \"http://localhost:3000/api/ledger/monthly?year=2026&month=4\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/ledger/transactions -H 'Content-Type: application/json' -d '{\"date\":\"2026-04-27\",\"type\":\"expense\",\"categoryId\":\"cat_010\",\"amount\":120,\"description\":\"ข้าวเย็น\",\"note\":\"ทดสอบ\"}')",
+      "Bash(curl -s -X DELETE \"http://localhost:3000/api/ledger/transactions/txn_ua6b6u?date=2026-04-27\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/ledger/transactions -H 'Content-Type: application/json' -d '{\"date\":\"2026-04-27\",\"type\":\"income\",\"categoryId\":\"cat_001\",\"amount\":45000,\"description\":\"เงินเดือน\",\"note\":\"\"}')",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('ID:', d['transaction']['id']\\); print\\('OK'\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('Count:', len\\(d['transactions']\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('Deleted:', d['success']\\)\")",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(curl -s http://localhost:3000/api/ledger/settings)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); txns=d['transactions']; print\\('Count:', len\\(txns\\)\\); [print\\(f'  {t[\\\\\"id\\\\\"]} | {t[\\\\\"description\\\\\"]} | {t[\\\\\"amount\\\\\"]}'\\) for t in txns]\")",
+      "Bash(curl -s -X PUT 'http://localhost:3000/api/ledger/transactions/txn_627ry7?date=2026-04-27' -H 'Content-Type: application/json' -d '{\"description\":\"เงินเดือน เมษายน \\(แก้ไขแล้ว\\)\",\"amount\":46000}')",
+      "Bash(curl -s -X DELETE \"http://localhost:3000/api/ledger/transactions/txn_627ry7?date=2026-04-27\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('Count after delete:', len\\(d['transactions']\\)\\)\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/ledger/categories -H 'Content-Type: application/json' -d '{\"type\":\"expense\",\"name\":\"ทดสอบ\",\"icon\":\"🧪\",\"color\":\"#8b5cf6\"}')",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); new_id=d['category']['id']; print\\('Created:', d['category']['id']\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(' expense count after:', len\\(d['categories']['expense']\\)\\)\")",
+      "Bash(npm install *)",
+      "Bash(node -e \"require\\('lucide-react'\\); console.log\\('OK'\\)\")",
+      "Bash(python3 -c \"import sys,json; print\\('OK:', json.load\\(sys.stdin\\)['settings']['currency']\\)\")",
+      "Bash(node -e \"require\\('sonner'\\); require\\('framer-motion'\\); require\\('clsx'\\); require\\('tailwind-merge'\\); console.log\\('all OK'\\)\")"
+    ]
+  }
+}
