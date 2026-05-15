@@ -33,7 +33,7 @@ function CategoryForm({ title, name, setName, icon, setIcon, color, setColor, on
       exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }}
       className="overflow-hidden"
     >
-      <div className="rounded-2xl border-2 border-indigo-100 bg-indigo-50/40 p-4 space-y-4 mt-2">
+      <div className="rounded-2xl border-2 border-primary/15 bg-primary/5 p-4 space-y-4 mt-2">
         <p className="text-xs font-semibold text-primary uppercase tracking-wide">{title}</p>
 
         <div>
@@ -47,7 +47,7 @@ function CategoryForm({ title, name, setName, icon, setIcon, color, setColor, on
           <div className="flex flex-wrap gap-1.5">
             {PRESET_ICONS.map((ic) => (
               <motion.button key={ic} type="button" onClick={() => setIcon(ic)} whileTap={{ scale: 0.9 }}
-                className={cn('h-9 w-9 rounded-xl text-lg transition-all', icon === ic ? 'bg-indigo-100 ring-2 ring-primary' : 'bg-surface hover:bg-bg')}>
+                className={cn('h-9 w-9 rounded-xl text-lg transition-all', icon === ic ? 'bg-primary/12 ring-2 ring-primary' : 'bg-surface hover:bg-bg')}>
                 {ic}
               </motion.button>
             ))}
@@ -75,7 +75,7 @@ function CategoryForm({ title, name, setName, icon, setIcon, color, setColor, on
 
         <div className="flex gap-2">
           <motion.button onClick={onSave} disabled={saving || !name.trim() || !icon} whileTap={{ scale: 0.97 }}
-            className="flex-1 rounded-xl bg-primary py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40 transition-colors">
+            className="flex-1 rounded-xl bg-primary py-2 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-40 transition-colors">
             {saving ? 'กำลังบันทึก...' : 'บันทึก'}
           </motion.button>
           <button onClick={onCancel} className="rounded-xl border border-border px-4 py-2 text-sm font-medium text-muted hover:bg-bg transition-colors">
@@ -168,7 +168,7 @@ export default function CategoryContainer() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <span className="text-sm font-semibold text-text">{list.length} หมวดหมู่</span>
           <motion.button onClick={() => { setAddOpen((v) => !v); setEdit(null) }} whileTap={{ scale: 0.95 }}
-            className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors">
+            className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary/90 transition-colors">
             <Plus size={12} strokeWidth={2.5} /> เพิ่มหมวดหมู่
           </motion.button>
         </div>

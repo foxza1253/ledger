@@ -95,7 +95,7 @@ export default function TransactionListContainer() {
           <span className="text-xs font-semibold text-expense tabular-nums">−{formatCurrency(totalExpense, symbol)}</span>
           <Link
             href="/transactions/new"
-            className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm shadow-indigo-100"
+            className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white hover:bg-primary/90 transition-colors shadow-sm shadow-primary/10"
           >
             <Plus size={13} strokeWidth={2.5} /> บันทึก
           </Link>
@@ -157,7 +157,7 @@ export default function TransactionListContainer() {
       >
         <Link
           href="/transactions/new"
-          className="flex h-13 w-13 items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors"
+          className="flex h-13 w-13 items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/20 hover:bg-primary/90 transition-colors"
           aria-label="บันทึกรายการใหม่"
         >
           <Plus size={22} strokeWidth={2.5} />

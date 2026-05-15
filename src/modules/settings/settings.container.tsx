@@ -109,7 +109,7 @@ export default function SettingsContainer() {
       </Section>
 
       <motion.button onClick={handleSave} disabled={saving} whileTap={{ scale: 0.98 }}
-        className="w-full flex items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm shadow-indigo-100"
+        className="w-full flex items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-sm shadow-primary/10"
       >
         {saving ? <><Loader2 size={14} className="animate-spin" /> กำลังบันทึก...</> : 'บันทึกการตั้งค่า'}
       </motion.button>

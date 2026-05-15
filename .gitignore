@@ -38,7 +38,7 @@ yarn-error.log*
 
 # agent
 /.yarn/agents
-.agents
+# .agents
 .claude
 
 # typescript

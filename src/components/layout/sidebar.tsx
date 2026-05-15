@@ -22,7 +22,7 @@ export default function Sidebar() {
   return (
     <aside className="fixed inset-y-0 left-0 w-55 bg-surface border-r border-border flex flex-col">
       <div className="flex h-16 items-center gap-2.5 px-5 border-b border-border">
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary shadow-sm shadow-indigo-200">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary shadow-sm shadow-primary/20">
           <DollarSign size={16} className="text-white" strokeWidth={2.5} />
         </div>
         <span className="text-[15px] font-bold text-text tracking-tight">Ledger</span>
@@ -36,7 +36,7 @@ export default function Sidebar() {
               <Link
                 href={href}
                 className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
-                  active ? 'bg-indigo-50 text-primary' : 'text-muted hover:bg-gray-50 hover:text-text'
+                  active ? 'bg-primary/8 text-primary' : 'text-muted hover:bg-bg hover:text-text'
                 }`}
               >
                 {active && (
@@ -61,7 +61,7 @@ export default function Sidebar() {
             <Link
               href="/settings"
               className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
-                active ? 'bg-indigo-50 text-primary' : 'text-muted hover:bg-gray-50 hover:text-text'
+                active ? 'bg-primary/8 text-primary' : 'text-muted hover:bg-bg hover:text-text'
               }`}
             >
               {active && (

@@ -153,7 +153,7 @@ export default function DashboardContainer() {
       >
         <Link
           href="/transactions/new"
-          className="flex h-13 w-13 items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors"
+          className="flex h-13 w-13 items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/20 hover:bg-primary/90 transition-colors"
           aria-label="บันทึกรายการใหม่"
         >
           <Plus size={22} strokeWidth={2.5} />

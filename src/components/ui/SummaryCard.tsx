@@ -15,7 +15,7 @@ interface SummaryCardProps {
 const config = {
   income:  { Icon: TrendingUp,   iconClass: 'text-emerald-500', iconBg: 'bg-emerald-50', valueClass: 'text-emerald-600' },
   expense: { Icon: TrendingDown, iconClass: 'text-rose-500',    iconBg: 'bg-rose-50',    valueClass: 'text-rose-500'    },
-  balance: { Icon: Wallet,       iconClass: 'text-primary',     iconBg: 'bg-indigo-50',  valueClass: 'text-primary'     },
+  balance: { Icon: Wallet,       iconClass: 'text-primary',     iconBg: 'bg-primary/8',  valueClass: 'text-primary'     },
 }
 
 function AnimatedNumber({ value, symbol }: { value: number; symbol: string }) {
