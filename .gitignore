@@ -39,7 +39,7 @@ yarn-error.log*
 # agent
 /.yarn/agents
 # .agents
-.claude
+.claude/
 
 # typescript
 *.tsbuildinfo
