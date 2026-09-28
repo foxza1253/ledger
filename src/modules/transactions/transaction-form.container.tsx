@@ -1,22 +1,50 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, Loader2, Trash2, TrendingUp, TrendingDown } from 'lucide-react'
+import { CalendarDays, ChevronLeft, Loader2, Trash2, TrendingUp, TrendingDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { useLedger } from '@/common/contexts/LedgerContext'
-import { todayString } from '@/lib/date'
+import { useHydrated } from '@/common/hooks/use-hydrated'
+import { ApiClientError, errorMessage } from '@/lib/api-client'
+import { todayString, toDateString } from '@/lib/date'
 import { cn } from '@/lib/cn'
 import { createTransaction, updateTransaction, deleteTransaction } from './transaction.service'
 import type { Transaction, TransactionType } from '@/common/type/interface'
 
 interface TransactionFormProps { initial?: Transaction }
 
-export default function TransactionFormContainer({ initial }: TransactionFormProps) {
+function yesterdayString() {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return toDateString(d)
+}
+
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null
+  return <p id={id} role="alert" className="mt-1.5 text-sm font-medium text-danger">{message}</p>
+}
+
+export default function TransactionFormContainer(props: TransactionFormProps) {
+  // Default date is "today" — only compute it on the client (see useHydrated).
+  const hydrated = useHydrated()
+  if (!hydrated) {
+    return (
+      <div className="card mx-auto max-w-xl space-y-5 p-6" aria-busy="true">
+        <div className="skeleton h-12 w-full rounded-2xl" />
+        <div className="skeleton h-20 w-full rounded-2xl" />
+        <div className="skeleton h-40 w-full rounded-2xl" />
+      </div>
+    )
+  }
+  return <TransactionForm {...props} />
+}
+
+function TransactionForm({ initial }: TransactionFormProps) {
   const router = useRouter()
-  const { categories } = useLedger()
+  const { categories, symbol, setYearMonth } = useLedger()
 
   const [type, setType]               = useState<TransactionType>(initial?.type ?? 'expense')
   const [date, setDate]               = useState(initial?.date ?? todayString())
@@ -24,19 +52,43 @@ export default function TransactionFormContainer({ initial }: TransactionFormPro
   const [amount, setAmount]           = useState(initial?.amount?.toString() ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
   const [note, setNote]               = useState(initial?.note ?? '')
+  const [errors, setErrors]           = useState<Record<string, string>>({})
   const [saving, setSaving]           = useState(false)
   const [showDelete, setShowDelete]   = useState(false)
   const [deleting, setDeleting]       = useState(false)
+  const cancelRef = useRef<HTMLButtonElement>(null)
 
   const categoryList = categories ? categories[type] : []
-  const isValid = !!categoryId && parseFloat(amount) > 0 && description.trim().length > 0
+  const amountNum = Number(amount)
+  const isValid = !!categoryId && Number.isFinite(amountNum) && amountNum > 0 && description.trim().length > 0 && !!date
+
+  useEffect(() => {
+    if (!showDelete) return
+    cancelRef.current?.focus()
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowDelete(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [showDelete])
+
+  function goToListFor(dateStr: string) {
+    const [y, m] = dateStr.split('-').map(Number)
+    setYearMonth(y, m)
+    router.push('/transactions')
+    router.refresh()
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!isValid) return
+    const clientErrors: Record<string, string> = {}
+    if (!(amountNum > 0)) clientErrors.amount = 'กรุณากรอกจำนวนเงินมากกว่า 0'
+    if (!categoryId) clientErrors.categoryId = 'กรุณาเลือกหมวดหมู่'
+    if (!description.trim()) clientErrors.description = 'กรุณากรอกคำอธิบาย'
+    setErrors(clientErrors)
+    if (Object.keys(clientErrors).length) return
+
     setSaving(true)
     try {
-      const payload = { date, type, categoryId, amount: parseFloat(amount), description: description.trim(), note: note.trim() }
+      const payload = { date, type, categoryId, amount: amountNum, description: description.trim(), note: note.trim() }
       if (initial) {
         await updateTransaction(initial.id, initial.date, payload)
         toast.success('แก้ไขรายการสำเร็จ')
@@ -44,11 +96,13 @@ export default function TransactionFormContainer({ initial }: TransactionFormPro
         await createTransaction(payload)
         toast.success('บันทึกรายการสำเร็จ')
       }
-      router.push('/transactions')
-      router.refresh()
-    } catch {
-      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
-    } finally { setSaving(false) }
+      goToListFor(date)
+    } catch (err) {
+      if (err instanceof ApiClientError && err.details) setErrors(err.details)
+      toast.error(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleDelete() {
@@ -57,120 +111,138 @@ export default function TransactionFormContainer({ initial }: TransactionFormPro
     try {
       await deleteTransaction(initial.id, initial.date)
       toast.success('ลบรายการสำเร็จ')
-      router.push('/transactions')
-      router.refresh()
-    } catch {
-      toast.error('ลบไม่สำเร็จ กรุณาลองใหม่')
-    } finally { setDeleting(false) }
+      goToListFor(initial.date)
+    } catch (err) {
+      toast.error(errorMessage(err, 'ลบไม่สำเร็จ กรุณาลองใหม่'))
+      setDeleting(false)
+    }
   }
 
-  const fieldClass = 'rounded-2xl bg-surface border border-border px-5 py-4 shadow-sm'
-  const inputClass = 'w-full bg-transparent focus:outline-none'
+  const label = 'mb-2 block text-sm font-semibold text-text'
+  const accent = type === 'income' ? 'text-income' : 'text-expense'
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="max-w-lg"
-    >
-      <Link href="/transactions" className="inline-flex items-center gap-1 text-sm text-muted hover:text-text mb-6 transition-colors">
-        <ChevronLeft size={16} /> กลับ
+    <div className="mx-auto max-w-xl animate-in fade-in slide-in-from-bottom-3 duration-300">
+      <Link href="/transactions" className="mb-4 inline-flex items-center gap-1 rounded-lg px-1 text-sm font-medium text-muted hover:text-primary-strong">
+        <ChevronLeft size={16} /> กลับไปหน้าธุรกรรม
       </Link>
 
-      <form onSubmit={handleSubmit} className="space-y-3">
+      <form onSubmit={handleSubmit} noValidate className="card space-y-6 p-5 sm:p-6">
         {/* Type toggle */}
-        <div className="flex rounded-2xl bg-bg border border-border p-1 gap-1">
-          {(['expense', 'income'] as TransactionType[]).map((t) => (
-            <button key={t} type="button"
-              onClick={() => { setType(t); setCategoryId('') }}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-all',
-                type === t
-                  ? t === 'income' ? 'bg-surface text-income shadow-sm' : 'bg-surface text-expense shadow-sm'
-                  : 'text-muted hover:text-text'
-              )}
-            >
-              {t === 'income'
-                ? <><TrendingUp size={14} strokeWidth={2.5} /> รายรับ</>
-                : <><TrendingDown size={14} strokeWidth={2.5} /> รายจ่าย</>
-              }
-            </button>
-          ))}
+        <div className="grid grid-cols-2 gap-1.5 rounded-2xl bg-bg p-1.5 ring-1 ring-inset ring-border" role="radiogroup" aria-label="ประเภทรายการ">
+          {(['expense', 'income'] as TransactionType[]).map((t) => {
+            const active = type === t
+            return (
+              <button key={t} type="button" role="radio" aria-checked={active}
+                onClick={() => { if (t !== type) { setType(t); setCategoryId('') } }}
+                className={cn(
+                  'flex items-center justify-center gap-2 rounded-xl py-2.5 text-[15px] font-semibold transition-all',
+                  active
+                    ? t === 'income' ? 'bg-income text-white shadow-sm' : 'bg-expense text-white shadow-sm'
+                    : 'text-muted hover:bg-surface hover:text-text',
+                )}
+              >
+                {t === 'income' ? <TrendingUp size={16} strokeWidth={2.5} /> : <TrendingDown size={16} strokeWidth={2.5} />}
+                {t === 'income' ? 'รายรับ' : 'รายจ่าย'}
+              </button>
+            )
+          })}
         </div>
 
         {/* Amount */}
-        <div className={fieldClass}>
-          <label className="block text-xs font-medium text-muted mb-1.5">จำนวนเงิน (฿)</label>
-          <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
-            required min="0.01" step="any" placeholder="0"
-            className={cn(inputClass, 'text-3xl font-bold tracking-tight text-text placeholder:text-border')} />
-        </div>
-
-        {/* Date */}
-        <div className={fieldClass}>
-          <label htmlFor="date" className="block text-xs font-medium text-muted mb-1.5">วันที่</label>
-          <input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required
-            className={cn(inputClass, 'text-sm font-medium text-text')} />
+        <div>
+          <label htmlFor="amount" className={label}>จำนวนเงิน</label>
+          <div className={cn(
+            'flex items-baseline gap-2 rounded-2xl border-2 bg-surface px-4 py-3 transition-colors focus-within:border-primary',
+            errors.amount ? 'border-danger' : 'border-border-strong',
+          )}>
+            <span className={cn('text-2xl font-bold', accent)}>{symbol}</span>
+            <input id="amount" type="number" inputMode="decimal" value={amount}
+              onChange={(e) => setAmount(e.target.value)} min="0.01" step="0.01" placeholder="0.00" autoFocus={!initial}
+              aria-invalid={!!errors.amount} aria-describedby="amount-error"
+              className={cn('w-full bg-transparent text-4xl font-bold tracking-tight tabular-nums placeholder:text-border-strong focus:outline-none', accent)} />
+          </div>
+          <FieldError id="amount-error" message={errors.amount} />
         </div>
 
         {/* Category grid */}
-        <div className={fieldClass}>
-          <label className="block text-xs font-medium text-muted mb-3">หมวดหมู่</label>
-          <div className="grid grid-cols-3 gap-2">
-            {categoryList.map((cat) => {
-              const active = categoryId === cat.id
-              return (
-                <motion.button key={cat.id} type="button" onClick={() => setCategoryId(cat.id)}
-                  whileTap={{ scale: 0.95 }}
-                  className={cn(
-                    'flex flex-col items-center gap-1.5 rounded-xl border-2 py-3 px-2 text-xs font-medium transition-all',
-                    active ? 'shadow-sm' : 'border-transparent bg-bg text-muted hover:bg-gray-100'
-                  )}
-                  style={active ? { borderColor: cat.color, color: cat.color, backgroundColor: `${cat.color}10` } : {}}
-                >
-                  <span className="text-xl leading-none">{cat.icon}</span>
-                  <span className="text-center leading-tight">{cat.name}</span>
-                </motion.button>
-              )
-            })}
+        <fieldset>
+          <legend className={label}>หมวดหมู่</legend>
+          {categoryList.length === 0 ? (
+            <p className="rounded-xl bg-bg px-4 py-3 text-sm text-muted">
+              ยังไม่มีหมวดหมู่ — <Link href="/categories" className="font-semibold text-primary-strong underline">เพิ่มหมวดหมู่</Link>
+            </p>
+          ) : (
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {categoryList.map((cat) => {
+                const active = categoryId === cat.id
+                return (
+                  <motion.button key={cat.id} type="button" onClick={() => setCategoryId(cat.id)} whileTap={{ scale: 0.95 }}
+                    aria-pressed={active}
+                    className={cn(
+                      'flex flex-col items-center gap-1.5 rounded-xl border-2 px-1.5 py-3 text-sm font-medium transition-all',
+                      active ? 'border-primary bg-primary-soft text-primary-strong shadow-sm' : 'border-transparent bg-bg text-text hover:border-border-strong',
+                    )}
+                  >
+                    <span className="text-2xl leading-none" aria-hidden>{cat.icon}</span>
+                    <span className="line-clamp-2 text-center leading-tight">{cat.name}</span>
+                  </motion.button>
+                )
+              })}
+            </div>
+          )}
+          <FieldError id="category-error" message={errors.categoryId} />
+        </fieldset>
+
+        {/* Date */}
+        <div>
+          <label htmlFor="date" className={label}>วันที่</label>
+          <div className="flex flex-wrap gap-2">
+            <div className="relative min-w-44 flex-1">
+              <CalendarDays size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-subtle" />
+              <input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required
+                aria-invalid={!!errors.date} className="field-input pl-9" />
+            </div>
+            {[{ v: todayString(), l: 'วันนี้' }, { v: yesterdayString(), l: 'เมื่อวาน' }].map(({ v, l }) => (
+              <button key={l} type="button" onClick={() => setDate(v)}
+                className={cn('rounded-xl px-3.5 text-sm font-semibold ring-1 ring-inset transition-colors',
+                  date === v ? 'bg-primary-soft text-primary-strong ring-primary-muted' : 'text-muted ring-border-strong hover:bg-bg')}>
+                {l}
+              </button>
+            ))}
           </div>
+          <FieldError id="date-error" message={errors.date} />
         </div>
 
         {/* Description */}
-        <div className={fieldClass}>
-          <label htmlFor="description" className="block text-xs font-medium text-muted mb-1.5">คำอธิบาย</label>
+        <div>
+          <label htmlFor="description" className={label}>คำอธิบาย</label>
           <input id="description" type="text" value={description} onChange={(e) => setDescription(e.target.value)}
-            required placeholder="ระบุรายละเอียด"
-            className={cn(inputClass, 'text-sm font-medium text-text placeholder:text-border')} />
+            maxLength={200} placeholder="เช่น ข้าวกลางวัน, ค่าไฟเดือนนี้"
+            aria-invalid={!!errors.description} aria-describedby="description-error"
+            className={cn('field-input', errors.description && 'border-danger')} />
+          <FieldError id="description-error" message={errors.description} />
         </div>
 
         {/* Note */}
-        <div className={fieldClass}>
-          <label htmlFor="note" className="block text-xs font-medium text-muted mb-1.5">
-            หมายเหตุ <span className="font-normal text-muted/70">(ไม่บังคับ)</span>
+        <div>
+          <label htmlFor="note" className={label}>
+            หมายเหตุ <span className="font-normal text-subtle">(ไม่บังคับ)</span>
           </label>
-          <input id="note" type="text" value={note} onChange={(e) => setNote(e.target.value)}
-            placeholder="เพิ่มหมายเหตุ..."
-            className={cn(inputClass, 'text-sm text-text placeholder:text-border')} />
+          <textarea id="note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={500}
+            placeholder="รายละเอียดเพิ่มเติม..." className="field-input resize-none" />
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3 pt-1">
-          <motion.button type="submit" disabled={saving || !isValid} whileTap={{ scale: 0.98 }}
-            className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm shadow-primary/10"
-          >
-            {saving
-              ? <><Loader2 size={14} className="animate-spin" /> กำลังบันทึก...</>
-              : initial ? 'บันทึกการแก้ไข' : 'บันทึกรายการ'
-            }
-          </motion.button>
+        <div className="flex gap-3 border-t border-border pt-5">
+          <button type="submit" disabled={saving} className={cn('btn-primary flex-1 py-3 text-[15px]', !isValid && 'opacity-70')}>
+            {saving ? <><Loader2 size={16} className="animate-spin" /> กำลังบันทึก...</> : initial ? 'บันทึกการแก้ไข' : 'บันทึกรายการ'}
+          </button>
           {initial && (
-            <motion.button type="button" onClick={() => setShowDelete(true)} whileTap={{ scale: 0.95 }}
-              className="flex items-center justify-center gap-1.5 rounded-2xl border border-border px-4 py-3 text-sm font-medium text-muted hover:border-rose-200 hover:text-expense hover:bg-rose-50 transition-colors"
-            >
-              <Trash2 size={14} />
-            </motion.button>
+            <button type="button" onClick={() => setShowDelete(true)} aria-label="ลบรายการ"
+              className="flex items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-danger ring-1 ring-inset ring-danger/25 transition-colors hover:bg-danger-soft">
+              <Trash2 size={16} /> <span className="hidden sm:inline">ลบ</span>
+            </button>
           )}
         </div>
       </form>
@@ -178,31 +250,35 @@ export default function TransactionFormContainer({ initial }: TransactionFormPro
       {/* Delete confirm */}
       <AnimatePresence>
         {showDelete && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end justify-center bg-black/20 backdrop-blur-sm p-4"
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end justify-center bg-text/30 p-4 backdrop-blur-sm sm:items-center"
+            onClick={() => setShowDelete(false)}
           >
             <motion.div
+              role="alertdialog" aria-modal="true" aria-labelledby="del-title" aria-describedby="del-desc"
               initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="w-full max-w-sm rounded-2xl bg-surface border border-border p-6 shadow-xl"
+              transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
+              className="card w-full max-w-sm p-6"
             >
-              <h3 className="text-base font-semibold text-text mb-1">ลบรายการนี้?</h3>
-              <p className="text-sm text-muted mb-5">ไม่สามารถย้อนกลับได้</p>
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-danger-soft text-danger">
+                <Trash2 size={22} />
+              </span>
+              <h3 id="del-title" className="mb-1 text-lg font-bold text-text">ลบรายการนี้?</h3>
+              <p id="del-desc" className="mb-6 text-sm text-muted">
+                “{initial?.description}” จะถูกลบถาวรและไม่สามารถกู้คืนได้
+              </p>
               <div className="flex gap-3">
-                <button onClick={() => setShowDelete(false)}
-                  className="flex-1 rounded-xl border border-border py-2.5 text-sm font-medium text-text hover:bg-bg transition-colors">
-                  ยกเลิก
-                </button>
+                <button ref={cancelRef} onClick={() => setShowDelete(false)} className="btn-secondary flex-1">ยกเลิก</button>
                 <button onClick={handleDelete} disabled={deleting}
-                  className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-rose-500 py-2.5 text-sm font-semibold text-white hover:bg-rose-600 disabled:opacity-50 transition-colors">
-                  {deleting ? <><Loader2 size={13} className="animate-spin" /> ลบ...</> : 'ลบรายการ'}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-danger py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-800 disabled:opacity-50">
+                  {deleting ? <><Loader2 size={14} className="animate-spin" /> กำลังลบ...</> : 'ลบรายการ'}
                 </button>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   )
 }

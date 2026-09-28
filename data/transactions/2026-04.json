@@ -5,11 +5,11 @@
     {
       "date": "2026-04-24",
       "type": "income",
-      "categoryId": "cat_001",
+      "categoryId": "d9febd90-0a33-4e23-b729-9a03a629f5b8",
       "amount": 35000,
       "description": "เงินเดือน",
       "note": "",
-      "id": "txn_g35c21",
+      "id": "e724ec4c-a3a2-420c-a8db-345ca7076f63",
       "tags": [],
       "createdAt": "2026-04-27T07:23:30.646Z",
       "updatedAt": "2026-04-27T07:23:30.646Z"
@@ -17,11 +17,11 @@
     {
       "date": "2026-04-27",
       "type": "expense",
-      "categoryId": "cat_018",
+      "categoryId": "f6805e09-69bf-45d0-834c-b7a858330ce4",
       "amount": 7500,
       "description": "ค่ารถ",
       "note": "",
-      "id": "txn_58fo8v",
+      "id": "46fc7421-0b28-499a-a9b2-1ffdd95c9356",
       "tags": [],
       "createdAt": "2026-04-27T07:23:52.937Z",
       "updatedAt": "2026-04-27T07:23:52.937Z"
@@ -29,11 +29,11 @@
     {
       "date": "2026-04-27",
       "type": "expense",
-      "categoryId": "cat_018",
+      "categoryId": "f6805e09-69bf-45d0-834c-b7a858330ce4",
       "amount": 24000,
       "description": "ค่าบัตรเครดิตและค่าshopee",
       "note": "",
-      "id": "txn_ie5z9u",
+      "id": "0c10a996-159f-4b71-bea3-5ba143dcd10e",
       "tags": [],
       "createdAt": "2026-04-27T07:24:46.661Z",
       "updatedAt": "2026-04-27T07:24:46.661Z"
@@ -41,11 +41,11 @@
     {
       "date": "2026-04-24",
       "type": "income",
-      "categoryId": "cat_004",
+      "categoryId": "daf93884-fc6c-4af3-9bbd-58f90fcbb699",
       "amount": 20000,
       "description": "เงินเก็บ",
       "note": "",
-      "id": "txn_50rbjz",
+      "id": "5eb089e6-80d6-420d-8ac4-1e114a9747f8",
       "tags": [],
       "createdAt": "2026-04-27T07:25:43.153Z",
       "updatedAt": "2026-04-27T07:25:43.153Z"

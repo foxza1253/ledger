@@ -1,19 +1,12 @@
 import { NextRequest } from 'next/server'
-import { readJson, writeJson } from '@/lib/json-store'
-import type { Settings } from '@/common/type/interface'
+import { readBody } from '@/server/errors'
+import { authed } from '@/server/route'
+import { getSettings, updateSettings } from '@/server/services/settings.service'
 
-export async function GET() {
-  const settings = await readJson<Settings>('settings.json')
-  if (!settings) {
-    return Response.json({ error: 'settings not found' }, { status: 404 })
-  }
-  return Response.json({ settings })
+export function GET() {
+  return authed(async (session) => Response.json({ settings: await getSettings(session) }))
 }
 
-export async function PUT(request: NextRequest) {
-  const body = (await request.json()) as Partial<Settings>
-  const current = await readJson<Settings>('settings.json')
-  const updated = { ...current, ...body }
-  await writeJson('settings.json', updated)
-  return Response.json({ settings: updated })
+export function PUT(request: NextRequest) {
+  return authed(async (session) => Response.json({ settings: await updateSettings(session, await readBody(request)) }))
 }

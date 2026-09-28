@@ -1,168 +1,167 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useDeferredValue, useState } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
-import { Plus, ReceiptText } from 'lucide-react'
+import { Plus, ReceiptText, Search, SearchX, TrendingDown, TrendingUp, X } from 'lucide-react'
 import { useLedger } from '@/common/contexts/LedgerContext'
+import { useQuery } from '@/common/hooks/use-query'
 import TransactionCard from '@/components/ui/TransactionCard'
+import EmptyState from '@/components/ui/EmptyState'
+import ErrorState from '@/components/ui/ErrorState'
+import StatusBadge from '@/components/ui/StatusBadge'
+import Fab from '@/components/layout/fab'
 import { fetchTransactions } from './transaction.service'
 import { formatCurrency } from '@/common/utils/currency'
-import type { Transaction, Category } from '@/common/type/interface'
+import { parseDateOnly, todayString, toDateString } from '@/lib/date'
+import { cn } from '@/lib/cn'
+import type { Transaction } from '@/common/type/interface'
 
 function groupByDate(txns: Transaction[]) {
   const map = new Map<string, Transaction[]>()
-  for (const t of txns) {
-    const g = map.get(t.date) ?? []
-    g.push(t)
-    map.set(t.date, g)
-  }
-  return Array.from(map.entries())
-    .sort(([a], [b]) => b.localeCompare(a))
-    .map(([date, items]) => ({ date, items }))
+  for (const t of txns) map.set(t.date, [...(map.get(t.date) ?? []), t])
+  return [...map.entries()].sort(([a], [b]) => b.localeCompare(a)).map(([date, items]) => ({ date, items }))
 }
 
 function formatGroupDate(dateStr: string): string {
-  const d = new Date(dateStr)
-  const today = new Date()
-  const yesterday = new Date(today)
-  yesterday.setDate(today.getDate() - 1)
-  if (d.toDateString() === today.toDateString()) return 'วันนี้'
-  if (d.toDateString() === yesterday.toDateString()) return 'เมื่อวาน'
-  return d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })
-}
-
-function getDayBalance(items: Transaction[]) {
-  return items.reduce((s, t) => s + (t.type === 'income' ? t.amount : -t.amount), 0)
+  const today = todayString()
+  const y = new Date()
+  y.setDate(y.getDate() - 1)
+  if (dateStr === today) return 'วันนี้'
+  if (dateStr === toDateString(y)) return 'เมื่อวาน'
+  return parseDateOnly(dateStr).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' })
 }
 
 type Filter = 'all' | 'income' | 'expense'
 
+const filterOptions: { val: Filter; label: string }[] = [
+  { val: 'all', label: 'ทั้งหมด' },
+  { val: 'income', label: 'รายรับ' },
+  { val: 'expense', label: 'รายจ่าย' },
+]
+
 export default function TransactionListContainer() {
-  const { year, month, settings, categories } = useLedger()
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [loading, setLoading] = useState(true)
+  const { year, month, symbol, findCategory } = useLedger()
   const [filter, setFilter] = useState<Filter>('all')
+  const [search, setSearch] = useState('')
+  const q = useDeferredValue(search.trim().toLowerCase())
 
-  useEffect(() => {
-    setLoading(true)
-    fetchTransactions(year, month).then(setTransactions).finally(() => setLoading(false))
-  }, [year, month])
+  const fetcher = useCallback((signal: AbortSignal) => fetchTransactions(year, month, undefined, signal), [year, month])
+  const { data, loading, error, reload } = useQuery(`txns:${year}-${month}`, fetcher)
+  const transactions = loading ? [] : data ?? []
 
-  function findCategory(id: string): Category | undefined {
-    if (!categories) return undefined
-    return [...categories.income, ...categories.expense].find((c) => c.id === id)
-  }
-
-  const symbol = settings?.currencySymbol ?? '฿'
-  const filtered = filter === 'all' ? transactions : transactions.filter((t) => t.type === filter)
+  const filtered = transactions.filter((t) => {
+    if (filter !== 'all' && t.type !== filter) return false
+    if (!q) return true
+    const cat = findCategory(t.categoryId)
+    return [t.description, t.note, cat?.name, String(t.amount)].some((s) => s?.toLowerCase().includes(q))
+  })
   const grouped = groupByDate(filtered)
-  const totalIncome  = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+  const totalIncome = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
   const totalExpense = transactions.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
-
-  const filterOptions: { val: Filter; label: string }[] = [
-    { val: 'all',     label: 'ทั้งหมด' },
-    { val: 'income',  label: 'รายรับ' },
-    { val: 'expense', label: 'รายจ่าย' },
-  ]
 
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex rounded-xl bg-bg border border-border p-0.5 gap-0.5">
+      <div className="card flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-1 rounded-xl bg-bg p-1 ring-1 ring-inset ring-border" role="tablist" aria-label="กรองประเภท">
           {filterOptions.map(({ val, label }) => (
             <button
               key={val}
+              role="tab"
+              aria-selected={filter === val}
               onClick={() => setFilter(val)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+              className={cn(
+                'flex-1 rounded-lg px-3.5 py-1.5 text-sm font-semibold transition-all sm:flex-none',
                 filter === val
-                  ? val === 'income'
-                    ? 'bg-surface text-income shadow-sm'
-                    : val === 'expense'
-                    ? 'bg-surface text-expense shadow-sm'
-                    : 'bg-surface text-text shadow-sm'
-                  : 'text-muted hover:text-text'
-              }`}
+                  ? cn('bg-surface shadow-sm ring-1 ring-border', val === 'income' ? 'text-income' : val === 'expense' ? 'text-expense' : 'text-primary-strong')
+                  : 'text-muted hover:text-text',
+              )}
             >
               {label}
             </button>
           ))}
         </div>
 
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-semibold text-income tabular-nums">+{formatCurrency(totalIncome, symbol)}</span>
-          <span className="text-xs font-semibold text-expense tabular-nums">−{formatCurrency(totalExpense, symbol)}</span>
-          <Link
-            href="/transactions/new"
-            className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white hover:bg-primary/90 transition-colors shadow-sm shadow-primary/10"
-          >
-            <Plus size={13} strokeWidth={2.5} /> บันทึก
-          </Link>
+        <div className="relative flex-1 sm:max-w-xs">
+          <Search size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-subtle" />
+          <label htmlFor="txn-search" className="sr-only">ค้นหารายการ</label>
+          <input
+            id="txn-search"
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="ค้นหา คำอธิบาย หมวดหมู่ ยอดเงิน"
+            className="field-input py-2 pl-9"
+          />
         </div>
+
+        <Link href="/transactions/new" className="btn-primary hidden py-2 sm:inline-flex">
+          <Plus size={15} strokeWidth={2.5} /> บันทึก
+        </Link>
       </div>
 
-      {/* List */}
-      {loading ? (
-        <div className="rounded-2xl bg-surface border border-border shadow-sm overflow-hidden divide-y divide-border">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="flex items-center gap-4 px-4 py-3 animate-pulse">
-              <div className="h-10 w-10 rounded-xl bg-gray-100 shrink-0" />
+      {!loading && !error && (
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge tone="income" icon={TrendingUp}>รับ {formatCurrency(totalIncome, symbol)}</StatusBadge>
+          <StatusBadge tone="expense" icon={TrendingDown}>จ่าย {formatCurrency(totalExpense, symbol)}</StatusBadge>
+          <StatusBadge tone="neutral">{transactions.length} รายการ</StatusBadge>
+        </div>
+      )}
+
+      {error ? (
+        <ErrorState error={error} onRetry={reload} />
+      ) : loading ? (
+        <div className="card divide-y divide-border overflow-hidden" aria-busy="true">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-5 py-3.5">
+              <div className="skeleton h-11 w-11 rounded-xl" />
               <div className="flex-1 space-y-2">
-                <div className="h-3 w-36 rounded bg-gray-100" />
-                <div className="h-2.5 w-24 rounded bg-gray-100" />
+                <div className="skeleton h-3.5 w-40" />
+                <div className="skeleton h-3 w-24" />
               </div>
-              <div className="h-3 w-16 rounded bg-gray-100" />
+              <div className="skeleton h-4 w-20" />
             </div>
           ))}
         </div>
       ) : grouped.length === 0 ? (
-        <div className="rounded-2xl bg-surface border border-border shadow-sm flex flex-col items-center justify-center py-16 text-muted">
-          <ReceiptText size={40} strokeWidth={1.5} className="mb-3 text-border" />
-          <p className="text-sm font-medium">ยังไม่มีรายการ</p>
-          <Link href="/transactions/new" className="mt-3 text-xs font-medium text-primary hover:underline">
-            บันทึกรายการแรก
-          </Link>
+        <div className="card">
+          {transactions.length === 0 ? (
+            <EmptyState icon={ReceiptText} title="ยังไม่มีรายการในเดือนนี้" description="กดปุ่มด้านล่างเพื่อบันทึกรายการแรก"
+              action={{ href: '/transactions/new', label: 'บันทึกรายการ' }} />
+          ) : (
+            <EmptyState icon={SearchX} title="ไม่พบรายการที่ตรงกัน" description="ลองเปลี่ยนคำค้นหาหรือตัวกรอง" />
+          )}
+          {transactions.length > 0 && (
+            <div className="-mt-8 flex justify-center pb-8">
+              <button type="button" className="btn-secondary" onClick={() => { setSearch(''); setFilter('all') }}>
+                <X size={14} /> ล้างตัวกรอง
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
           {grouped.map(({ date, items }) => {
-            const bal = getDayBalance(items)
+            const bal = items.reduce((s, t) => s + (t.type === 'income' ? t.amount : -t.amount), 0)
             return (
-              <div key={date} className="rounded-2xl bg-surface border border-border shadow-sm overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-2.5 bg-bg border-b border-border">
-                  <span className="text-xs font-semibold text-muted">{formatGroupDate(date)}</span>
-                  <span className={`text-xs font-semibold tabular-nums ${bal >= 0 ? 'text-income' : 'text-expense'}`}>
+              <section key={date} className="card overflow-hidden" aria-label={formatGroupDate(date)}>
+                <div className="flex items-center justify-between border-b border-border bg-bg/70 px-5 py-2.5">
+                  <h2 className="text-sm font-semibold text-text">{formatGroupDate(date)}</h2>
+                  <span className={cn('text-sm font-semibold tabular-nums', bal >= 0 ? 'text-income' : 'text-expense')}>
                     {bal >= 0 ? '+' : '−'}{formatCurrency(Math.abs(bal), symbol)}
                   </span>
                 </div>
-                <div className="divide-y divide-border">
+                <ul className="divide-y divide-border">
                   {items.map((txn, i) => (
                     <TransactionCard key={txn.id} transaction={txn} category={findCategory(txn.categoryId)} symbol={symbol} index={i} />
                   ))}
-                </div>
-              </div>
+                </ul>
+              </section>
             )
           })}
         </div>
       )}
 
-      <motion.div
-        className="fixed bottom-8 right-8"
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 25, delay: 0.15 }}
-        whileHover={{ scale: 1.08 }}
-        whileTap={{ scale: 0.93 }}
-      >
-        <Link
-          href="/transactions/new"
-          className="flex h-13 w-13 items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/20 hover:bg-primary/90 transition-colors"
-          aria-label="บันทึกรายการใหม่"
-        >
-          <Plus size={22} strokeWidth={2.5} />
-        </Link>
-      </motion.div>
+      <Fab />
     </div>
   )
 }

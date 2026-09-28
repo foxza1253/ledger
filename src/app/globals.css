@@ -4,17 +4,48 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Ledger theme — pink & white.
+ * Brand pink is for chrome only (buttons, nav, focus). Money/status colors are
+ * separate hues so they never read as "brand": income = teal, expense = orange,
+ * warning = amber, danger = red, info = sky. Income/expense pair validated with the
+ * dataviz palette checker (CVD ΔE 13.8). All text tokens ≥ 4.5:1 on white.
+ */
 @theme inline {
-  --color-bg: #f4f6f9;
+  /* App tokens */
+  --color-bg: #fff6f9;
   --color-surface: #ffffff;
-  --color-border: #e8ecf0;
-  --color-text: #1a202c;
-  --color-muted: #718096;
-  --color-primary: #5b6cf6;
-  --color-income: #10b981;
-  --color-expense: #f43f5e;
-  --font-heading: var(--font-sans);
-  --font-sans: var(--font-sans);
+  --color-border: #f3dce6;
+  --color-border-strong: #e9c3d3;
+  --color-text: #221a24;          /* 16.4:1 on white */
+  --color-muted: #5c5163;         /* 7.4:1 */
+  --color-subtle: #7d7282;        /* 4.6:1 — placeholders, captions */
+
+  --color-primary: #db2777;       /* pink-600, white text 4.6:1 */
+  --color-primary-strong: #be185d;/* pink-700, link text 6.1:1 */
+  --color-primary-soft: #fdeef5;
+  --color-primary-muted: #fbcfe3;
+
+  --color-income: #0f766e;        /* teal-700 text 5.5:1 */
+  --color-income-mark: #0d9488;   /* chart fill */
+  --color-income-soft: #e6f7f4;
+  --color-expense: #c2410c;       /* orange-700 text 5.2:1 */
+  --color-expense-mark: #ea580c;
+  --color-expense-soft: #fff1e6;
+  --color-warning: #a16207;
+  --color-warning-soft: #fef8e1;
+  --color-danger: #b91c1c;
+  --color-danger-soft: #fdeceb;
+  --color-info: #0369a1;
+  --color-info-soft: #e8f4fc;
+
+  --font-sans: var(--font-anuphan), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-anuphan), ui-sans-serif, system-ui, sans-serif;
+
+  --shadow-card: 0 1px 2px rgb(190 24 93 / 0.04), 0 4px 16px -4px rgb(190 24 93 / 0.08);
+  --shadow-pop: 0 10px 30px -8px rgb(190 24 93 / 0.35);
+
+  /* shadcn bridge */
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -64,86 +95,43 @@ html {
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
+  appearance: none;
 }
-input[type="number"] { -moz-appearance: textfield; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
 :root {
-  /* Background: #f4f6f9 */
-  --background: oklch(0.970 0.005 255);
-  /* Foreground: #1a202c */
-  --foreground: oklch(0.160 0.023 264);
-  /* Card/Surface: #ffffff */
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.160 0.023 264);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.160 0.023 264);
-  /* Primary: #5b6cf6 */
-  --primary: oklch(0.560 0.200 265);
-  --primary-foreground: oklch(1 0 0);
-  /* Secondary/Muted bg: #e8ecf0 */
-  --secondary: oklch(0.925 0.009 255);
-  --secondary-foreground: oklch(0.160 0.023 264);
-  --muted: oklch(0.925 0.009 255);
-  /* Muted text: #718096 */
-  --muted-foreground: oklch(0.535 0.020 254);
-  --accent: oklch(0.925 0.009 255);
-  --accent-foreground: oklch(0.160 0.023 264);
-  /* Destructive: #f43f5e */
-  --destructive: oklch(0.605 0.220 12);
-  /* Border: #e8ecf0 */
-  --border: oklch(0.925 0.009 255);
-  --input: oklch(0.925 0.009 255);
-  --ring: oklch(0.560 0.200 265);
-  /* Charts */
-  --chart-1: oklch(0.675 0.175 162);
-  --chart-2: oklch(0.605 0.220 12);
-  --chart-3: oklch(0.560 0.200 265);
-  --chart-4: oklch(0.535 0.020 254);
-  --chart-5: oklch(0.160 0.023 264);
-  --radius: 0.625rem;
-  /* Sidebar */
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.160 0.023 264);
-  --sidebar-primary: oklch(0.560 0.200 265);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.970 0.005 255);
-  --sidebar-accent-foreground: oklch(0.160 0.023 264);
-  --sidebar-border: oklch(0.925 0.009 255);
-  --sidebar-ring: oklch(0.560 0.200 265);
-}
-
-.dark {
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.65 0.175 265);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.65 0.175 265);
-  --chart-1: oklch(0.75 0.18 162);
-  --chart-2: oklch(0.70 0.22 12);
-  --chart-3: oklch(0.65 0.175 265);
-  --chart-4: oklch(0.705 0.015 286.067);
-  --chart-5: oklch(0.432 0.095 166.913);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.65 0.175 265);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.65 0.175 265);
+  --background: #fff6f9;
+  --foreground: #221a24;
+  --card: #ffffff;
+  --card-foreground: #221a24;
+  --popover: #ffffff;
+  --popover-foreground: #221a24;
+  --primary: #db2777;
+  --primary-foreground: #ffffff;
+  --secondary: #fdeef5;
+  --secondary-foreground: #be185d;
+  --muted: #fdeef5;
+  --muted-foreground: #5c5163;
+  --accent: #fdeef5;
+  --accent-foreground: #221a24;
+  --destructive: #b91c1c;
+  --border: #f3dce6;
+  --input: #e9c3d3;
+  --ring: #db2777;
+  --chart-1: #0d9488;
+  --chart-2: #ea580c;
+  --chart-3: #0369a1;
+  --chart-4: #a16207;
+  --chart-5: #5c5163;
+  --radius: 0.75rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #221a24;
+  --sidebar-primary: #db2777;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #fdeef5;
+  --sidebar-accent-foreground: #be185d;
+  --sidebar-border: #f3dce6;
+  --sidebar-ring: #db2777;
 }
 
 @layer base {
@@ -151,9 +139,46 @@ input[type="number"] { -moz-appearance: textfield; }
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-bg text-text;
+    background-image:
+      radial-gradient(60rem 30rem at 110% -10%, rgb(251 207 227 / 0.55), transparent 60%),
+      radial-gradient(40rem 24rem at -10% 110%, rgb(253 238 245 / 0.9), transparent 60%);
+    background-attachment: fixed;
   }
   html {
     @apply font-sans;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--color-primary-muted);
+    color: var(--color-text);
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-border bg-surface shadow-(--shadow-card);
+  }
+  .field-input {
+    @apply w-full rounded-xl border border-border-strong bg-surface px-3.5 py-2.5 text-sm font-medium text-text placeholder:text-subtle transition-colors focus:border-primary focus:outline-none focus:ring-3 focus:ring-primary/15;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-primary/25 transition-colors hover:bg-primary-strong disabled:cursor-not-allowed disabled:opacity-45;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-border-strong bg-surface px-4 py-2.5 text-sm font-semibold text-text transition-colors hover:bg-primary-soft disabled:opacity-45;
+  }
+  .skeleton {
+    @apply animate-pulse rounded-md bg-primary-soft;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

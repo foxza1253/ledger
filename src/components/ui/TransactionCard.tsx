@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { ChevronRight } from 'lucide-react'
 import { formatCurrency } from '@/common/utils/currency'
 import { cn } from '@/lib/cn'
+import CategoryIcon from './CategoryIcon'
 import type { Transaction, Category } from '@/common/type/interface'
 
 interface TransactionCardProps {
@@ -11,44 +12,40 @@ interface TransactionCardProps {
   category?: Category
   symbol?: string
   index?: number
+  showDate?: boolean
 }
 
-export default function TransactionCard({ transaction, category, symbol = '฿', index = 0 }: TransactionCardProps) {
+export default function TransactionCard({ transaction, category, symbol = '฿', index = 0, showDate }: TransactionCardProps) {
   const isIncome = transaction.type === 'income'
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: -8 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.25, delay: index * 0.04, ease: 'easeOut' }}
+    <li
+      className="list-none animate-in fade-in slide-in-from-bottom-1 fill-mode-backwards duration-200"
+      style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
     >
       <Link
-        href={`/transactions/${transaction.id}?date=${transaction.date}`}
-        className="flex items-center gap-4 px-4 py-3 hover:bg-bg active:scale-[0.99] transition-all rounded-xl"
+        href={`/transactions/${encodeURIComponent(transaction.id)}?date=${transaction.date}`}
+        className="group flex items-center gap-3.5 px-4 py-3 transition-colors hover:bg-primary-soft/50 focus-visible:bg-primary-soft/50 sm:px-5"
       >
-        <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg"
-          style={{ backgroundColor: category ? `${category.color}15` : '#f1f5f9' }}
-        >
-          {category?.icon ?? '💰'}
-        </div>
+        <CategoryIcon category={category} />
 
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-text truncate">{transaction.description}</p>
-          {category && (
-            <p className="text-xs text-muted mt-0.5 truncate">{category.name}</p>
-          )}
-        </div>
-
-        <div className="text-right shrink-0">
-          <p className={cn('text-sm font-semibold tabular-nums', isIncome ? 'text-income' : 'text-expense')}>
-            {isIncome ? '+' : '−'}{formatCurrency(transaction.amount, symbol)}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[15px] font-semibold text-text">{transaction.description}</p>
+          <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-muted">
+            <span className="truncate">{category?.name ?? 'ไม่มีหมวดหมู่'}</span>
+            {showDate && <><span aria-hidden>·</span><span>{transaction.date.split('-').reverse().slice(0, 2).join('/')}</span></>}
+            {transaction.note && <><span aria-hidden>·</span><span className="truncate text-subtle">{transaction.note}</span></>}
           </p>
-          {transaction.note && (
-            <p className="text-xs text-muted mt-0.5 max-w-32 truncate">{transaction.note}</p>
-          )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1">
+          <span className={cn('text-[15px] font-bold tabular-nums', isIncome ? 'text-income' : 'text-expense')}>
+            <span className="sr-only">{isIncome ? 'รายรับ' : 'รายจ่าย'} </span>
+            {isIncome ? '+' : '−'}{formatCurrency(transaction.amount, symbol)}
+          </span>
+          <ChevronRight size={16} className="text-subtle opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
         </div>
       </Link>
-    </motion.div>
+    </li>
   )
 }

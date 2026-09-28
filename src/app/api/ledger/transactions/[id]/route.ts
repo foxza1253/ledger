@@ -1,63 +1,32 @@
 import { NextRequest } from 'next/server'
-import { readJson, writeJson } from '@/lib/json-store'
-import { getMonthKey } from '@/lib/date'
-import type { MonthlyFile, UpdateTransactionInput } from '@/common/type/interface'
+import { readBody } from '@/server/errors'
+import { authed } from '@/server/route'
+import { deleteTransaction, getTransaction, updateTransaction } from '@/server/services/transaction.service'
 
 type Ctx = { params: Promise<{ id: string }> }
 
-async function findTransaction(id: string, date?: string) {
-  if (date) {
-    const [yearStr, monthStr] = date.split('-')
-    const key = getMonthKey(parseInt(yearStr), parseInt(monthStr))
-    const file = await readJson<MonthlyFile>(`transactions/${key}.json`)
-    const txn = file?.transactions.find((t) => t.id === id)
-    if (txn) return { file, key, txn }
-  }
-  return null
-}
+// `?date=YYYY-MM-DD` is an optional lookup hint for the JSON provider.
+const dateHint = (request: NextRequest) => request.nextUrl.searchParams.get('date') ?? undefined
 
-export async function GET(request: NextRequest, ctx: Ctx) {
-  const { id } = await ctx.params
-  const date = request.nextUrl.searchParams.get('date') ?? ''
-  const result = await findTransaction(id, date)
-  if (!result) return Response.json({ error: 'Not found' }, { status: 404 })
-  return Response.json({ transaction: result.txn })
-}
-
-export async function PUT(request: NextRequest, ctx: Ctx) {
-  const { id } = await ctx.params
-  const date = request.nextUrl.searchParams.get('date') ?? ''
-  const result = await findTransaction(id, date)
-  if (!result) return Response.json({ error: 'Not found' }, { status: 404 })
-
-  const body = (await request.json()) as UpdateTransactionInput
-  const updated = {
-    ...result.txn,
-    ...body,
-    id,
-    updatedAt: new Date().toISOString(),
-  }
-
-  const newTransactions = result.file!.transactions.map((t) => (t.id === id ? updated : t))
-  await writeJson(`transactions/${result.key}.json`, {
-    ...result.file,
-    transactions: newTransactions,
+export function GET(request: NextRequest, ctx: Ctx) {
+  return authed(async (session) => {
+    const { id } = await ctx.params
+    return Response.json({ transaction: await getTransaction(session, id, dateHint(request)) })
   })
-
-  return Response.json({ transaction: updated })
 }
 
-export async function DELETE(request: NextRequest, ctx: Ctx) {
-  const { id } = await ctx.params
-  const date = request.nextUrl.searchParams.get('date') ?? ''
-  const result = await findTransaction(id, date)
-  if (!result) return Response.json({ error: 'Not found' }, { status: 404 })
-
-  const newTransactions = result.file!.transactions.filter((t) => t.id !== id)
-  await writeJson(`transactions/${result.key}.json`, {
-    ...result.file,
-    transactions: newTransactions,
+export function PUT(request: NextRequest, ctx: Ctx) {
+  return authed(async (session) => {
+    const { id } = await ctx.params
+    const transaction = await updateTransaction(session, id, await readBody(request), dateHint(request))
+    return Response.json({ transaction })
   })
+}
 
-  return Response.json({ success: true })
+export function DELETE(request: NextRequest, ctx: Ctx) {
+  return authed(async (session) => {
+    const { id } = await ctx.params
+    await deleteTransaction(session, id, dateHint(request))
+    return Response.json({ success: true })
+  })
 }

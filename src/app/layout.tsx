@@ -1,35 +1,31 @@
-import type { Metadata } from 'next'
-import { Geist } from 'next/font/google'
+import type { Metadata, Viewport } from 'next'
+import { Anuphan } from 'next/font/google'
 import { Toaster } from 'sonner'
 import './globals.css'
-import { LedgerProvider } from '@/common/contexts/LedgerContext'
-import Sidebar from '@/components/layout/sidebar'
-import Header from '@/components/layout/header'
 
-const geist = Geist({ subsets: ['latin'], variable: '--font-geist' })
+// Anuphan covers Thai + Latin (Geist has no Thai glyphs, so Thai fell back to system fonts).
+const anuphan = Anuphan({ subsets: ['thai', 'latin'], variable: '--font-anuphan', display: 'swap' })
 
 export const metadata: Metadata = {
-  title: 'Ledger',
+  title: { default: 'Ledger', template: '%s · Ledger' },
   description: 'ระบบบันทึกรายรับ-รายจ่ายส่วนตัว',
+  robots: { index: false, follow: false },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#db2777',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="th" className={geist.variable}>
-      <body className="font-(family-name:--font-geist)">
-        <LedgerProvider>
-          <Sidebar />
-          <div className="ml-55 flex min-h-screen flex-col">
-            <Header />
-            <main className="flex-1 p-6 max-w-4xl">{children}</main>
-          </div>
-        </LedgerProvider>
+    <html lang="th" className={anuphan.variable}>
+      <body className="min-h-screen text-[15px]">
+        {children}
         <Toaster
-          position="bottom-right"
-          toastOptions={{
-            style: { fontFamily: 'var(--font-geist)', fontSize: '14px' },
-          }}
+          position="top-center"
+          toastOptions={{ style: { fontFamily: 'var(--font-anuphan)', fontSize: '14px' } }}
           richColors
+          closeButton
         />
       </body>
     </html>

@@ -1,118 +1,134 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { Loader2 } from 'lucide-react'
+import { useState } from 'react'
+import { Loader2, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
 import { useLedger } from '@/common/contexts/LedgerContext'
+import { errorMessage } from '@/lib/api-client'
+import { CURRENCY_SYMBOLS } from '@/common/utils/currency'
+import { cn } from '@/lib/cn'
+import { saveSettings } from './settings.service'
 import type { Settings } from '@/common/type/interface'
 
-async function saveSettings(data: Partial<Settings>): Promise<Settings> {
-  const res = await fetch('/api/ledger/settings', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  })
-  return (await res.json()).settings
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl bg-surface border border-border shadow-sm overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-border">
-        <h2 className="text-sm font-semibold text-text">{title}</h2>
+    <section className="card overflow-hidden">
+      <div className="border-b border-border px-5 py-4">
+        <h2 className="text-base font-semibold text-text">{title}</h2>
+        {description && <p className="mt-0.5 text-sm text-muted">{description}</p>}
       </div>
-      <div className="p-5 space-y-4">{children}</div>
-    </div>
+      <div className="space-y-5 p-5">{children}</div>
+    </section>
   )
 }
 
-function Row({ label, sub, children }: { label: string; sub?: string; children: React.ReactNode }) {
+function Row({ label, htmlFor, sub, children }: { label: string; htmlFor?: string; sub?: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4">
+    <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <p className="text-sm font-medium text-text">{label}</p>
-        {sub && <p className="text-xs text-muted mt-0.5">{sub}</p>}
+        <label htmlFor={htmlFor} className="text-[15px] font-medium text-text">{label}</label>
+        {sub && <p className="mt-0.5 text-sm text-muted">{sub}</p>}
       </div>
       <div className="shrink-0">{children}</div>
     </div>
   )
 }
 
-const selectClass = "rounded-xl border border-border bg-bg px-3 py-1.5 text-sm font-medium text-text focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+const CURRENCIES = [
+  { code: 'THB', label: 'บาทไทย' },
+  { code: 'USD', label: 'US Dollar' },
+  { code: 'EUR', label: 'Euro' },
+  { code: 'JPY', label: 'Japanese Yen' },
+  { code: 'GBP', label: 'British Pound' },
+]
 
-export default function SettingsContainer() {
-  const { settings } = useLedger()
-  const [local, setLocal] = useState<Settings | null>(null)
+function SettingsForm({ initial }: { initial: Settings }) {
+  const { setSettings } = useLedger()
+  const [local, setLocal] = useState<Settings>(initial)
   const [saving, setSaving] = useState(false)
-
-  useEffect(() => { if (settings) setLocal({ ...settings }) }, [settings])
-
-  if (!local) return (
-    <div className="animate-pulse space-y-4">
-      {[...Array(3)].map((_, i) => <div key={i} className="h-28 rounded-2xl bg-surface border border-border shadow-sm" />)}
-    </div>
-  )
+  const dirty = JSON.stringify(local) !== JSON.stringify(initial)
 
   async function handleSave() {
-    if (!local) return
     setSaving(true)
     try {
-      await saveSettings(local)
+      setSettings(await saveSettings(local))
       toast.success('บันทึกการตั้งค่าสำเร็จ')
-    } catch {
-      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
-    } finally { setSaving(false) }
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
   }
 
+  const budgetOn = local.monthlyBudget.enabled
+
   return (
-    <div className="max-w-lg space-y-4">
-      <Section title="สกุลเงิน">
-        <Row label="สกุลเงิน" sub="ใช้แสดงทั่วทั้งแอป">
-          <select value={local.currency} onChange={(e) => setLocal({ ...local, currency: e.target.value })} className={selectClass}>
-            <option value="THB">THB — บาทไทย</option>
-            <option value="USD">USD — US Dollar</option>
-            <option value="JPY">JPY — Japanese Yen</option>
-            <option value="EUR">EUR — Euro</option>
+    <div className="mx-auto max-w-2xl space-y-5">
+      <Section title="สกุลเงิน" description="ใช้แสดงผลจำนวนเงินทั่วทั้งแอป">
+        <Row label="สกุลเงิน" htmlFor="currency">
+          <select id="currency" value={local.currency} className="field-input w-auto py-2"
+            onChange={(e) => setLocal({ ...local, currency: e.target.value, currencySymbol: CURRENCY_SYMBOLS[e.target.value] ?? local.currencySymbol })}>
+            {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code} — {c.label}</option>)}
           </select>
         </Row>
-        <Row label="สัญลักษณ์" sub="แสดงหน้าตัวเลข">
-          <input type="text" value={local.currencySymbol} onChange={(e) => setLocal({ ...local, currencySymbol: e.target.value })} maxLength={4}
-            className={`${selectClass} w-16 text-center`} />
+        <Row label="สัญลักษณ์" htmlFor="symbol" sub="แสดงหน้าตัวเลข">
+          <input id="symbol" type="text" value={local.currencySymbol} maxLength={4}
+            onChange={(e) => setLocal({ ...local, currencySymbol: e.target.value })}
+            className="field-input w-20 py-2 text-center" />
         </Row>
       </Section>
 
-      <Section title="งบประมาณรายเดือน">
-        <Row label="เปิดใช้งาน" sub="แสดง progress bar บน Dashboard">
-          <button
-            onClick={() => setLocal({ ...local, monthlyBudget: { ...local.monthlyBudget, enabled: !local.monthlyBudget.enabled } })}
-            className={`relative inline-flex h-6 w-11 rounded-full transition-colors ${local.monthlyBudget.enabled ? 'bg-primary' : 'bg-gray-200'}`}
-          >
-            <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm mt-0.5 transition-transform ${local.monthlyBudget.enabled ? 'translate-x-5.5' : 'translate-x-0.5'}`} />
+      <Section title="งบประมาณรายเดือน" description="แจ้งเตือนเมื่อใช้จ่ายใกล้หรือเกินงบบนหน้าภาพรวม">
+        <Row label="เปิดใช้งานงบประมาณ">
+          <button type="button" role="switch" aria-checked={budgetOn} aria-label="เปิดใช้งานงบประมาณ"
+            onClick={() => setLocal({ ...local, monthlyBudget: { ...local.monthlyBudget, enabled: !budgetOn } })}
+            className={cn('relative inline-flex h-7 w-12 items-center rounded-full transition-colors', budgetOn ? 'bg-primary' : 'bg-border-strong')}>
+            <span className={cn('inline-block h-5 w-5 rounded-full bg-white shadow transition-transform', budgetOn ? 'translate-x-6' : 'translate-x-1')} />
           </button>
         </Row>
-        {local.monthlyBudget.enabled && (
-          <Row label="งบประมาณ (฿ / เดือน)">
-            <input type="number" value={local.monthlyBudget.amount} min="0" step="1000"
-              onChange={(e) => setLocal({ ...local, monthlyBudget: { ...local.monthlyBudget, amount: parseFloat(e.target.value) || 0 } })}
-              className={`${selectClass} w-32 text-right`} />
+        {budgetOn && (
+          <Row label={`งบประมาณต่อเดือน (${local.currencySymbol})`} htmlFor="budget">
+            <input id="budget" type="number" inputMode="decimal" value={local.monthlyBudget.amount} min="0" step="500"
+              onChange={(e) => setLocal({ ...local, monthlyBudget: { ...local.monthlyBudget, amount: Math.max(0, Number(e.target.value) || 0) } })}
+              className="field-input w-40 py-2 text-right tabular-nums" />
           </Row>
         )}
       </Section>
 
-      <Section title="การแสดงผล">
-        <Row label="วันเริ่มต้นของเดือน" sub="วันที่ถือเป็นต้นเดือน">
-          <select value={local.startDayOfMonth} onChange={(e) => setLocal({ ...local, startDayOfMonth: parseInt(e.target.value) })} className={selectClass}>
-            {[1, 15, 25].map((d) => <option key={d} value={d}>วันที่ {d}</option>)}
-          </select>
-        </Row>
-      </Section>
+      <div className="sticky bottom-24 z-10 lg:bottom-4">
+        <button onClick={handleSave} disabled={saving || !dirty} className="btn-primary w-full py-3 text-[15px] shadow-(--shadow-pop)">
+          {saving ? <><Loader2 size={16} className="animate-spin" /> กำลังบันทึก...</> : dirty ? 'บันทึกการตั้งค่า' : 'บันทึกแล้ว'}
+        </button>
+      </div>
+    </div>
+  )
+}
 
-      <motion.button onClick={handleSave} disabled={saving} whileTap={{ scale: 0.98 }}
-        className="w-full flex items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-sm shadow-primary/10"
-      >
-        {saving ? <><Loader2 size={14} className="animate-spin" /> กำลังบันทึก...</> : 'บันทึกการตั้งค่า'}
-      </motion.button>
+function AccountSection() {
+  const { account, logout } = useLedger()
+  if (!account || account.mode === 'disabled') return null
+  return (
+    <Section title="บัญชี" description={account.mode === 'supabase' ? 'เข้าสู่ระบบด้วย Supabase Auth' : 'โหมดผู้ใช้คนเดียว'}>
+      <Row label={account.email ?? 'เจ้าของบัญชี'}>
+        <button type="button" onClick={logout}
+          className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-danger ring-1 ring-inset ring-danger/25 transition-colors hover:bg-danger-soft">
+          <LogOut size={15} /> ออกจากระบบ
+        </button>
+      </Row>
+    </Section>
+  )
+}
+
+export default function SettingsContainer() {
+  const { settings } = useLedger()
+  if (!settings) {
+    return <div className="mx-auto max-w-2xl space-y-5" aria-busy="true">{[0, 1].map((i) => <div key={i} className="card h-40" />)}</div>
+  }
+  // Re-mount the form when saved settings change so local state resets without an effect.
+  return (
+    <div className="space-y-5">
+      <SettingsForm key={JSON.stringify(settings)} initial={settings} />
+      <div className="mx-auto max-w-2xl"><AccountSection /></div>
     </div>
   )
 }

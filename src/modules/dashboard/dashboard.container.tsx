@@ -1,164 +1,115 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
-import { ArrowRight, Plus, ReceiptText } from 'lucide-react'
+import { ArrowRight, PieChart, ReceiptText } from 'lucide-react'
 import { useLedger } from '@/common/contexts/LedgerContext'
+import { useQuery } from '@/common/hooks/use-query'
 import SummaryCard from '@/components/ui/SummaryCard'
 import TransactionCard from '@/components/ui/TransactionCard'
-import { formatMonthYear } from '@/lib/date'
+import EmptyState from '@/components/ui/EmptyState'
+import ErrorState from '@/components/ui/ErrorState'
+import Fab from '@/components/layout/fab'
+import CategoryBreakdown from '@/components/charts/CategoryBreakdown'
+import { fetchMonthlySummary } from '@/modules/monthly/monthly.service'
+import { fetchTransactions } from '@/modules/transactions/transaction.service'
+import { cn } from '@/lib/cn'
+import BudgetCard from './budget-card'
 import type { DashboardData } from './dashboard.type'
-import type { Category } from '@/common/type/interface'
 
-function SkeletonCard() {
+function DashboardSkeleton() {
   return (
-    <div className="rounded-2xl bg-surface border border-border p-5 shadow-sm animate-pulse">
-      <div className="flex justify-between mb-3">
-        <div className="h-3 w-16 rounded bg-gray-100" />
-        <div className="h-8 w-8 rounded-lg bg-gray-100" />
+    <div className="space-y-5" aria-busy="true" aria-label="กำลังโหลด">
+      <div className="grid gap-4 sm:grid-cols-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="card space-y-3 p-5">
+            <div className="skeleton h-4 w-20" />
+            <div className="skeleton h-8 w-32" />
+          </div>
+        ))}
       </div>
-      <div className="h-7 w-28 rounded bg-gray-100" />
+      <div className="card h-28" />
+      <div className="card h-64" />
     </div>
   )
 }
 
 export default function DashboardContainer() {
-  const { year, month, settings, categories } = useLedger()
-  const [data, setData] = useState<DashboardData>({ summary: null, recentTransactions: [] })
-  const [loading, setLoading] = useState(true)
+  const { year, month, settings, symbol, findCategory } = useLedger()
 
-  useEffect(() => {
-    setLoading(true)
-    Promise.all([
-      fetch(`/api/ledger/monthly?year=${year}&month=${month}`).then((r) => r.json()),
-      fetch(`/api/ledger/transactions?year=${year}&month=${month}`).then((r) => r.json()),
-    ])
-      .then(([monthlyData, txData]) => {
-        setData({
-          summary: monthlyData.summary ?? null,
-          recentTransactions: (txData.transactions ?? []).slice(0, 5),
-        })
-      })
-      .finally(() => setLoading(false))
-  }, [year, month])
+  const fetcher = useCallback(
+    async (signal: AbortSignal): Promise<DashboardData> => {
+      const [summary, txns] = await Promise.all([
+        fetchMonthlySummary(year, month, signal),
+        fetchTransactions(year, month, undefined, signal),
+      ])
+      return { summary, recentTransactions: txns.slice(0, 6) }
+    },
+    [year, month],
+  )
+  const { data, loading, error, reload } = useQuery(`dashboard:${year}-${month}`, fetcher)
 
-  function findCategory(categoryId: string): Category | undefined {
-    if (!categories) return undefined
-    return [...categories.income, ...categories.expense].find((c) => c.id === categoryId)
-  }
+  if (error) return <ErrorState error={error} onRetry={reload} />
+  if (!data) return <DashboardSkeleton />
 
-  const symbol = settings?.currencySymbol ?? '฿'
-  const summary = data.summary
+  const { summary, recentTransactions } = data
   const budget = settings?.monthlyBudget
-  const budgetPct = budget?.enabled
-    ? Math.min(100, ((summary?.totalExpense ?? 0) / budget.amount) * 100)
-    : 0
-  const overBudget = budget?.enabled && (summary?.totalExpense ?? 0) > budget.amount
+  const expenseRows = summary.byCategory.filter((c) => c.type === 'expense')
+  const incomeCount = summary.byCategory.filter((c) => c.type === 'income').reduce((s, c) => s + c.count, 0)
+  const expenseCount = summary.transactionCount - incomeCount
 
   return (
-    <div className="space-y-5">
-      {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
-        {loading
-          ? [...Array(3)].map((_, i) => <SkeletonCard key={i} />)
-          : <>
-              <SummaryCard label="รายรับ"  amount={summary?.totalIncome  ?? 0} type="income"  symbol={symbol} />
-              <SummaryCard label="รายจ่าย" amount={summary?.totalExpense ?? 0} type="expense" symbol={symbol} />
-              <SummaryCard label="คงเหลือ" amount={summary?.balance      ?? 0} type="balance" symbol={symbol} />
-            </>
-        }
+    <div className={cn('space-y-5 transition-opacity', loading && 'opacity-60')} aria-busy={loading}>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <SummaryCard label="รายรับ" amount={summary.totalIncome} type="income" symbol={symbol} index={0}
+          hint={`${incomeCount} รายการ`} />
+        <SummaryCard label="รายจ่าย" amount={summary.totalExpense} type="expense" symbol={symbol} index={1}
+          hint={`${expenseCount} รายการ`} />
+        <SummaryCard label="คงเหลือ" amount={summary.balance} type="balance" symbol={symbol} index={2}
+          hint={summary.totalIncome > 0
+            ? `ออมได้ ${Math.max(0, (summary.balance / summary.totalIncome) * 100).toFixed(0)}% ของรายรับ`
+            : 'ยังไม่มีรายรับ'} />
       </div>
 
-      {/* Budget */}
-      {!loading && budget?.enabled && (
-        <div className="rounded-2xl bg-surface border border-border p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-2.5">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-text">งบประมาณเดือนนี้</span>
-              {overBudget && (
-                <span className="rounded-md bg-rose-50 px-1.5 py-0.5 text-[11px] font-semibold text-rose-500">
-                  เกินงบ
-                </span>
-              )}
-            </div>
-            <span className="text-sm text-muted tabular-nums">
-              {symbol}{(summary?.totalExpense ?? 0).toLocaleString('th-TH')}
-              <span className="text-border mx-1">/</span>
-              {symbol}{budget.amount.toLocaleString('th-TH')}
-            </span>
-          </div>
-          <div className="h-2 w-full rounded-full bg-bg">
-            <div
-              className={`h-2 rounded-full transition-all duration-500 ${overBudget ? 'bg-expense' : 'bg-primary'}`}
-              style={{ width: `${budgetPct}%` }}
-            />
-          </div>
-          <p className="mt-1.5 text-xs text-muted">
-            {overBudget
-              ? `เกินงบ ${symbol}${((summary?.totalExpense ?? 0) - budget.amount).toLocaleString('th-TH')}`
-              : `เหลือ ${symbol}${(budget.amount - (summary?.totalExpense ?? 0)).toLocaleString('th-TH')}`
-            }
-          </p>
-        </div>
+      {budget?.enabled && budget.amount > 0 && (
+        <BudgetCard spent={summary.totalExpense} budget={budget.amount} symbol={symbol} />
       )}
 
-      {/* Recent transactions */}
-      <div className="rounded-2xl bg-surface border border-border shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold text-text">รายการล่าสุด</h2>
-          <Link href="/transactions" className="flex items-center gap-1 text-xs font-medium text-primary hover:text-indigo-700">
-            ดูทั้งหมด <ArrowRight size={12} strokeWidth={2.5} />
-          </Link>
-        </div>
-
-        {loading ? (
-          <div className="divide-y divide-border">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="flex items-center gap-4 px-4 py-3 animate-pulse">
-                <div className="h-10 w-10 rounded-xl bg-gray-100 shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-3 w-32 rounded bg-gray-100" />
-                  <div className="h-2.5 w-20 rounded bg-gray-100" />
-                </div>
-                <div className="h-3 w-16 rounded bg-gray-100" />
-              </div>
-            ))}
-          </div>
-        ) : data.recentTransactions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-muted">
-            <ReceiptText size={36} strokeWidth={1.5} className="mb-3 text-border" />
-            <p className="text-sm">ยังไม่มีรายการในเดือนนี้</p>
-            <Link href="/transactions/new" className="mt-3 text-xs font-medium text-primary hover:underline">
-              บันทึกรายการแรก
+      <div className="grid gap-5 lg:grid-cols-5">
+        <section className="card overflow-hidden lg:col-span-3" aria-labelledby="recent-title">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <h2 id="recent-title" className="text-base font-semibold text-text">รายการล่าสุด</h2>
+            <Link href="/transactions" className="flex items-center gap-1 text-sm font-semibold text-primary-strong hover:underline">
+              ดูทั้งหมด <ArrowRight size={14} strokeWidth={2.5} />
             </Link>
           </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {data.recentTransactions.map((txn, i) => (
-              <TransactionCard key={txn.id} transaction={txn} category={findCategory(txn.categoryId)} symbol={symbol} index={i} />
-            ))}
+          {recentTransactions.length === 0 ? (
+            <EmptyState icon={ReceiptText} title="ยังไม่มีรายการในเดือนนี้" description="เริ่มบันทึกรายรับ-รายจ่ายรายการแรกของคุณ"
+              action={{ href: '/transactions/new', label: 'บันทึกรายการแรก' }} />
+          ) : (
+            <ul className="divide-y divide-border">
+              {recentTransactions.map((txn, i) => (
+                <TransactionCard key={txn.id} transaction={txn} category={findCategory(txn.categoryId)} symbol={symbol} index={i} showDate />
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="card p-5 lg:col-span-2" aria-labelledby="top-expense-title">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 id="top-expense-title" className="text-base font-semibold text-text">รายจ่ายสูงสุด</h2>
+            <Link href="/reports" className="text-sm font-semibold text-primary-strong hover:underline">รายงาน</Link>
           </div>
-        )}
+          {expenseRows.length === 0 ? (
+            <EmptyState icon={PieChart} title="ยังไม่มีรายจ่าย" />
+          ) : (
+            <CategoryBreakdown rows={expenseRows} total={summary.totalExpense} type="expense" symbol={symbol}
+              findCategory={findCategory} limit={5} />
+          )}
+        </section>
       </div>
 
-      {/* FAB */}
-      <motion.div
-        className="fixed bottom-8 right-8"
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 25, delay: 0.2 }}
-        whileHover={{ scale: 1.08 }}
-        whileTap={{ scale: 0.93 }}
-      >
-        <Link
-          href="/transactions/new"
-          className="flex h-13 w-13 items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/20 hover:bg-primary/90 transition-colors"
-          aria-label="บันทึกรายการใหม่"
-        >
-          <Plus size={22} strokeWidth={2.5} />
-        </Link>
-      </motion.div>
+      <Fab />
     </div>
   )
 }

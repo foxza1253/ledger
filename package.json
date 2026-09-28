@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "db:migrate-json": "node --env-file=.env.local scripts/migrate-json-to-supabase.mjs",
+    "data:migrate-ids": "node scripts/migrate-json-ids-to-uuid.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

@@ -1,177 +1,133 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
-import { TrendingUp } from 'lucide-react'
+import { useCallback } from 'react'
+import { ArrowDownRight, ArrowUpRight, Minus, TrendingUp } from 'lucide-react'
 import { useLedger } from '@/common/contexts/LedgerContext'
+import { useQuery } from '@/common/hooks/use-query'
+import EmptyState from '@/components/ui/EmptyState'
+import ErrorState from '@/components/ui/ErrorState'
+import StatusBadge from '@/components/ui/StatusBadge'
+import IncomeExpenseBars, { ChartLegend } from '@/components/charts/IncomeExpenseBars'
+import CategoryBreakdown from '@/components/charts/CategoryBreakdown'
+import { fetchMonthlySummary, fetchTrend } from '@/modules/monthly/monthly.service'
 import { formatCurrency } from '@/common/utils/currency'
-import { getMonthKey } from '@/lib/date'
-import type { MonthlySummary, Category } from '@/common/type/interface'
+import { formatMonthShort, formatMonthYear, getMonthKey } from '@/lib/date'
+import { cn } from '@/lib/cn'
 
-function DonutChart({ segments, size = 160 }: { segments: { value: number; color: string }[]; size?: number }) {
-  const r = 56, cx = size / 2, cy = size / 2
-  const circ = 2 * Math.PI * r
-  const total = segments.reduce((s, x) => s + x.value, 0)
-  if (total === 0) return null
-  let offset = 0
-  const slices = segments.map((seg) => {
-    const pct = seg.value / total
-    const dash = pct * circ
-    const rotate = (offset / total) * 360 - 90
-    offset += seg.value
-    return { ...seg, dash, gap: circ - dash, rotate }
-  })
+const TREND_MONTHS = 6
+
+function ChangeBadge({ current, previous, invert }: { current: number; previous: number; invert?: boolean }) {
+  if (previous === 0) return <StatusBadge tone="neutral">ไม่มีข้อมูลเดือนก่อน</StatusBadge>
+  const pct = ((current - previous) / previous) * 100
+  if (Math.abs(pct) < 0.5) return <StatusBadge tone="neutral" icon={Minus}>เท่าเดิม</StatusBadge>
+  const up = pct > 0
+  // For expenses, going up is bad; for income, going up is good.
+  const good = invert ? !up : up
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      {slices.map((s, i) => (
-        <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={s.color} strokeWidth="26"
-          strokeDasharray={`${s.dash} ${s.gap}`} transform={`rotate(${s.rotate} ${cx} ${cy})`} />
-      ))}
-      <circle cx={cx} cy={cy} r={r - 13} fill="white" />
-    </svg>
+    <StatusBadge tone={good ? 'success' : 'danger'} icon={up ? ArrowUpRight : ArrowDownRight}>
+      {up ? '+' : '−'}{Math.abs(pct).toFixed(0)}% จากเดือนก่อน
+    </StatusBadge>
   )
-}
-
-function getLast6(): { year: number; month: number }[] {
-  const now = new Date()
-  return Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
-    return { year: d.getFullYear(), month: d.getMonth() + 1 }
-  })
 }
 
 export default function ReportContainer() {
-  const { year, month, settings, categories } = useLedger()
-  const [summary,  setSummary]  = useState<MonthlySummary | null>(null)
-  const [history,  setHistory]  = useState<(MonthlySummary | null)[]>([])
-  const [loading,  setLoading]  = useState(true)
-  const last6 = useMemo(getLast6, [])
+  const { year, month, symbol, findCategory, setYearMonth } = useLedger()
 
-  useEffect(() => {
-    setLoading(true)
-    Promise.all([
-      fetch(`/api/ledger/monthly?year=${year}&month=${month}`).then((r) => r.json()).then((d) => d.summary ?? null),
-      Promise.all(last6.map((m) => fetch(`/api/ledger/monthly?year=${m.year}&month=${m.month}`).then((r) => r.json()).then((d) => d.summary ?? null).catch(() => null))),
-    ])
-      .then(([s, hist]) => { setSummary(s); setHistory(hist) })
-      .finally(() => setLoading(false))
-  }, [year, month, last6])
-
-  const symbol  = settings?.currencySymbol ?? '฿'
-  const allCats = categories ? [...categories.income, ...categories.expense] : [] as Category[]
-  const getCat  = (id: string) => allCats.find((c) => c.id === id)
-
-  const expenseSegments = useMemo(() => {
-    if (!summary || !categories) return []
-    return (summary.byCategory ?? [])
-      .filter((b) => categories.expense.some((c) => c.id === b.categoryId))
-      .sort((a, b) => b.total - a.total).slice(0, 6)
-      .map((b) => { const cat = getCat(b.categoryId); return { value: b.total, color: cat?.color ?? '#94a3b8', label: cat?.name ?? '', icon: cat?.icon ?? '' } })
-  }, [summary, categories])
-
-  const maxBar = Math.max(...history.map((h) => Math.max(h?.totalIncome ?? 0, h?.totalExpense ?? 0)), 1)
-  const hasData = (summary?.totalExpense ?? 0) > 0 || (summary?.totalIncome ?? 0) > 0
-  const card = "rounded-2xl bg-surface border border-border shadow-sm p-5"
-
-  if (loading) return (
-    <div className="space-y-4 animate-pulse">
-      {[...Array(3)].map((_, i) => <div key={i} className={`h-36 rounded-2xl bg-surface border border-border shadow-sm`} />)}
-    </div>
+  const fetcher = useCallback(
+    (signal: AbortSignal) => Promise.all([fetchMonthlySummary(year, month, signal), fetchTrend(year, month, TREND_MONTHS, signal)]),
+    [year, month],
   )
+  const { data, loading, error, reload } = useQuery(`report:${year}-${month}`, fetcher)
+
+  if (error) return <ErrorState error={error} onRetry={reload} />
+  if (!data) {
+    return <div className="space-y-5" aria-busy="true">{[0, 1, 2].map((i) => <div key={i} className="card h-48" />)}</div>
+  }
+
+  const [summary, trend] = data
+  const prev = trend.at(-2)
+  const hasData = summary.transactionCount > 0
+  const expenseRows = summary.byCategory.filter((c) => c.type === 'expense')
+  const savingsRate = summary.totalIncome > 0 ? (summary.balance / summary.totalIncome) * 100 : null
+  const avgExpense = trend.reduce((s, t) => s + t.totalExpense, 0) / trend.length
 
   return (
-    <div className="space-y-5">
-      {/* 6-month trend */}
-      <div className={card}>
-        <h2 className="text-sm font-semibold text-text mb-4">เทรนด์ 6 เดือน</h2>
-        <div className="flex items-end justify-between gap-2" style={{ height: 100 }}>
-          {last6.map((m, i) => {
-            const h  = history[i]
-            const incH = Math.round(((h?.totalIncome  ?? 0) / maxBar) * 80)
-            const expH = Math.round(((h?.totalExpense ?? 0) / maxBar) * 80)
-            const sel  = m.year === year && m.month === month
-            return (
-              <div key={getMonthKey(m.year, m.month)} className="flex-1 flex flex-col items-center gap-1">
-                <div className="flex items-end gap-0.5 w-full justify-center" style={{ height: 84 }}>
-                  <div className={`w-4 rounded-t-md transition-all ${sel ? 'bg-income' : 'bg-emerald-200'}`} style={{ height: incH || 2 }} />
-                  <div className={`w-4 rounded-t-md transition-all ${sel ? 'bg-expense' : 'bg-rose-200'}`}   style={{ height: expH || 2 }} />
-                </div>
-                <span className={`text-[10px] ${sel ? 'font-bold text-primary' : 'text-muted'}`}>
-                  {new Date(m.year, m.month - 1).toLocaleDateString('th-TH', { month: 'short' })}
-                </span>
-              </div>
-            )
-          })}
+    <div className={cn('space-y-5 transition-opacity', loading && 'opacity-60')} aria-busy={loading}>
+      <section className="card p-5" aria-labelledby="trend-title">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h2 id="trend-title" className="text-base font-semibold text-text">แนวโน้ม {TREND_MONTHS} เดือน</h2>
+          <ChartLegend />
         </div>
-        <div className="flex items-center gap-4 mt-3">
-          <span className="flex items-center gap-1.5 text-xs text-muted"><span className="h-2 w-3 rounded-sm bg-emerald-300 inline-block" /> รายรับ</span>
-          <span className="flex items-center gap-1.5 text-xs text-muted"><span className="h-2 w-3 rounded-sm bg-rose-300   inline-block" /> รายจ่าย</span>
-        </div>
-      </div>
+        <p className="mb-4 text-sm text-muted">
+          รายจ่ายเฉลี่ย <span className="font-semibold text-text tabular-nums">{formatCurrency(avgExpense, symbol, 'th-TH', 0)}</span> / เดือน · แตะที่แท่งเพื่อเปลี่ยนเดือน
+        </p>
+        <IncomeExpenseBars
+          caption={`รายรับ-รายจ่าย ${TREND_MONTHS} เดือนล่าสุด`}
+          symbol={symbol}
+          height={200}
+          minColumnWidth={48}
+          dimUnhighlighted
+          groups={trend.map((t) => ({
+            key: getMonthKey(t.year, t.month),
+            label: formatMonthShort(t.year, t.month),
+            title: formatMonthYear(t.year, t.month),
+            income: t.totalIncome,
+            expense: t.totalExpense,
+            highlighted: t.year === year && t.month === month,
+            onSelect: () => setYearMonth(t.year, t.month),
+          }))}
+        />
+      </section>
 
       {!hasData ? (
-        <div className={`${card} flex flex-col items-center justify-center py-16 text-muted`}>
-          <TrendingUp size={40} strokeWidth={1.5} className="mb-3 text-border" />
-          <p className="text-sm">ยังไม่มีข้อมูลในเดือนที่เลือก</p>
+        <div className="card">
+          <EmptyState icon={TrendingUp} title={`ยังไม่มีข้อมูลใน${formatMonthYear(year, month)}`} />
         </div>
       ) : (
-        <>
-          {expenseSegments.length > 0 && (
-            <div className={card}>
-              <h2 className="text-sm font-semibold text-text mb-4">สัดส่วนรายจ่าย</h2>
-              <div className="flex items-center gap-6">
-                <div className="shrink-0"><DonutChart segments={expenseSegments} /></div>
-                <div className="flex-1 space-y-2.5 min-w-0">
-                  {expenseSegments.map((seg) => {
-                    const pct = ((seg.value / (summary?.totalExpense ?? 1)) * 100).toFixed(1)
-                    return (
-                      <div key={seg.label} className="flex items-center gap-2.5">
-                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: seg.color }} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-text truncate">{seg.icon} {seg.label}</span>
-                            <span className="text-xs font-semibold text-muted ml-2 shrink-0">{pct}%</span>
-                          </div>
-                          <p className="text-xs text-muted tabular-nums">{formatCurrency(seg.value, symbol)}</p>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+        <div className="grid gap-5 lg:grid-cols-5">
+          <section className="card p-5 lg:col-span-2" aria-labelledby="month-sum-title">
+            <h2 id="month-sum-title" className="mb-4 text-base font-semibold text-text">สรุป{formatMonthYear(year, month)}</h2>
+            <dl className="space-y-4">
+              <div>
+                <dt className="text-sm text-muted">รายรับรวม</dt>
+                <dd className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xl font-bold text-income tabular-nums">{formatCurrency(summary.totalIncome, symbol)}</span>
+                  {prev && <ChangeBadge current={summary.totalIncome} previous={prev.totalIncome} />}
+                </dd>
               </div>
-            </div>
-          )}
+              <div>
+                <dt className="text-sm text-muted">รายจ่ายรวม</dt>
+                <dd className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xl font-bold text-expense tabular-nums">{formatCurrency(summary.totalExpense, symbol)}</span>
+                  {prev && <ChangeBadge current={summary.totalExpense} previous={prev.totalExpense} invert />}
+                </dd>
+              </div>
+              <div className="border-t border-border pt-4">
+                <dt className="text-sm text-muted">คงเหลือสุทธิ</dt>
+                <dd className="flex flex-wrap items-center justify-between gap-2">
+                  <span className={cn('text-2xl font-bold tabular-nums', summary.balance < 0 ? 'text-danger' : 'text-text')}>
+                    {summary.balance < 0 ? '−' : ''}{formatCurrency(Math.abs(summary.balance), symbol)}
+                  </span>
+                  {savingsRate !== null && (
+                    <StatusBadge tone={savingsRate >= 20 ? 'success' : savingsRate >= 0 ? 'warning' : 'danger'}>
+                      อัตราออม {savingsRate.toFixed(0)}%
+                    </StatusBadge>
+                  )}
+                </dd>
+              </div>
+            </dl>
+          </section>
 
-          <div className={card}>
-            <h2 className="text-sm font-semibold text-text mb-4">สรุปเดือนนี้</h2>
-            <div className="space-y-3">
-              {[
-                { label: 'รายรับรวม',  value: summary?.totalIncome  ?? 0, color: '#10b981' },
-                { label: 'รายจ่ายรวม', value: summary?.totalExpense ?? 0, color: '#f43f5e' },
-              ].map((row) => {
-                const max = Math.max(summary?.totalIncome ?? 0, summary?.totalExpense ?? 0, 1)
-                return (
-                  <div key={row.label} className="flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium text-text">{row.label}</span>
-                        <span className="text-xs font-semibold text-muted tabular-nums">{formatCurrency(row.value, symbol)}</span>
-                      </div>
-                      <div className="h-1.5 w-full rounded-full bg-bg">
-                        <div className="h-1.5 rounded-full transition-all duration-500" style={{ width: `${(row.value / max) * 100}%`, backgroundColor: row.color }} />
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-              <div className="flex items-center justify-between pt-2 border-t border-border">
-                <span className="text-sm font-semibold text-text">คงเหลือ</span>
-                <span className={`text-sm font-bold tabular-nums ${(summary?.balance ?? 0) >= 0 ? 'text-income' : 'text-expense'}`}>
-                  {formatCurrency(summary?.balance ?? 0, symbol)}
-                </span>
-              </div>
-            </div>
-          </div>
-        </>
+          <section className="card p-5 lg:col-span-3" aria-labelledby="share-title">
+            <h2 id="share-title" className="mb-4 text-base font-semibold text-text">สัดส่วนรายจ่าย</h2>
+            {expenseRows.length === 0 ? (
+              <p className="text-sm text-muted">ไม่มีรายจ่ายในเดือนนี้</p>
+            ) : (
+              <CategoryBreakdown rows={expenseRows} total={summary.totalExpense} type="expense" symbol={symbol}
+                findCategory={findCategory} limit={7} />
+            )}
+          </section>
+        </div>
       )}
     </div>
   )

@@ -3,79 +3,75 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { motion } from 'framer-motion'
-import {
-  LayoutDashboard, ArrowLeftRight, CalendarDays,
-  Tag, BarChart2, Settings, DollarSign,
-} from 'lucide-react'
+import { LogOut, Plus, UserRound } from 'lucide-react'
+import { useLedger } from '@/common/contexts/LedgerContext'
+import { cn } from '@/lib/cn'
+import Logo from './logo'
+import { mainNav, settingsNav, isActive, type NavItem } from './nav-items'
 
-const navItems = [
-  { href: '/dashboard',    label: 'ภาพรวม',  Icon: LayoutDashboard },
-  { href: '/transactions', label: 'ธุรกรรม',  Icon: ArrowLeftRight },
-  { href: '/monthly',      label: 'รายเดือน', Icon: CalendarDays },
-  { href: '/categories',   label: 'หมวดหมู่', Icon: Tag },
-  { href: '/reports',      label: 'รายงาน',   Icon: BarChart2 },
-]
+function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+  const { href, label, Icon } = item
+  return (
+    <Link
+      href={href}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium transition-colors',
+        active ? 'text-primary-strong' : 'text-muted hover:bg-primary-soft/60 hover:text-text',
+      )}
+    >
+      {active && (
+        <motion.span
+          layoutId="sidebar-active"
+          className="absolute inset-0 rounded-xl bg-primary-soft ring-1 ring-primary-muted"
+          transition={{ type: 'spring', stiffness: 420, damping: 36 }}
+        />
+      )}
+      <Icon size={18} strokeWidth={active ? 2.4 : 2} className="relative" />
+      <span className="relative">{label}</span>
+    </Link>
+  )
+}
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const { account, logout } = useLedger()
 
   return (
-    <aside className="fixed inset-y-0 left-0 w-55 bg-surface border-r border-border flex flex-col">
-      <div className="flex h-16 items-center gap-2.5 px-5 border-b border-border">
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary shadow-sm shadow-primary/20">
-          <DollarSign size={16} className="text-white" strokeWidth={2.5} />
-        </div>
-        <span className="text-[15px] font-bold text-text tracking-tight">Ledger</span>
+    <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 flex-col border-r border-border bg-surface/85 backdrop-blur-xl lg:flex">
+      <div className="flex h-16 items-center px-5">
+        <Logo />
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {navItems.map(({ href, label, Icon }, i) => {
-          const active = pathname === href || pathname.startsWith(href + '/')
-          return (
-            <motion.div key={href} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05, duration: 0.2 }}>
-              <Link
-                href={href}
-                className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
-                  active ? 'bg-primary/8 text-primary' : 'text-muted hover:bg-bg hover:text-text'
-                }`}
-              >
-                {active && (
-                  <motion.span
-                    layoutId="sidebar-active"
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full bg-primary"
-                    transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-                  />
-                )}
-                <Icon size={17} strokeWidth={active ? 2.5 : 2} />
-                {label}
-              </Link>
-            </motion.div>
-          )
-        })}
+      <div className="px-4 pb-2">
+        <Link href="/transactions/new" className="btn-primary w-full py-3">
+          <Plus size={16} strokeWidth={2.5} /> บันทึกรายการ
+        </Link>
+      </div>
+
+      <nav className="flex-1 space-y-1 px-3 py-3" aria-label="เมนูหลัก">
+        <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-subtle">เมนู</p>
+        {mainNav.map((item) => (
+          <NavLink key={item.href} item={item} active={isActive(pathname, item.href)} />
+        ))}
       </nav>
 
-      <div className="px-3 pb-4 border-t border-border pt-3">
-        {(() => {
-          const active = pathname === '/settings'
-          return (
-            <Link
-              href="/settings"
-              className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
-                active ? 'bg-primary/8 text-primary' : 'text-muted hover:bg-bg hover:text-text'
-              }`}
-            >
-              {active && (
-                <motion.span
-                  layoutId="sidebar-active"
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full bg-primary"
-                  transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-                />
-              )}
-              <Settings size={17} strokeWidth={active ? 2.5 : 2} />
-              ตั้งค่า
-            </Link>
-          )
-        })()}
+      <div className="space-y-1 border-t border-border px-3 py-3">
+        <NavLink item={settingsNav} active={isActive(pathname, settingsNav.href)} />
+        {account && account.mode !== 'disabled' && (
+          <div className="mt-2 flex items-center gap-2 rounded-xl bg-bg px-3 py-2.5 ring-1 ring-inset ring-border">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary-strong">
+              <UserRound size={16} />
+            </span>
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-text" title={account.email ?? undefined}>
+              {account.email ?? 'เจ้าของบัญชี'}
+            </span>
+            <button type="button" onClick={logout} aria-label="ออกจากระบบ" title="ออกจากระบบ"
+              className="rounded-lg p-1.5 text-muted transition-colors hover:bg-danger-soft hover:text-danger">
+              <LogOut size={16} />
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   )
